@@ -68,6 +68,12 @@ auto InMemoryWand::max_term_weight(std::uint32_t term_id) const noexcept -> floa
     return max_weights[term_id];
 }
 
+auto InMemoryWand::max_deep_term_weight(std::uint32_t term_id) const noexcept -> float
+{
+    printf("In here in memory.\n");
+    return max_deep_weights[term_id];
+}
+
 auto InMemoryWand::term_posting_count(std::uint32_t term_id) const noexcept -> std::uint32_t
 {
     return 1;

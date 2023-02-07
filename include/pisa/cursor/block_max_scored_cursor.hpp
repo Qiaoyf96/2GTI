@@ -17,10 +17,12 @@ class BlockMaxScoredCursor: public MaxScoredCursor<Cursor> {
     BlockMaxScoredCursor(
         Cursor cursor,
         TermScorer term_scorer,
+        TermScorer deep_term_scorer,
         float weight,
         float max_score,
+        float max_deep_score,
         typename Wand::wand_data_enumerator wdata)
-        : MaxScoredCursor<Cursor>(std::move(cursor), std::move(term_scorer), weight, max_score),
+        : MaxScoredCursor<Cursor>(std::move(cursor), std::move(term_scorer), std::move(deep_term_scorer), weight, max_score, max_deep_score),
           m_wdata(std::move(wdata))
     {}
     BlockMaxScoredCursor(BlockMaxScoredCursor const&) = delete;
@@ -31,7 +33,18 @@ class BlockMaxScoredCursor: public MaxScoredCursor<Cursor> {
 
     [[nodiscard]] PISA_ALWAYSINLINE auto block_max_score() -> float
     {
-        return m_wdata.score() * this->query_weight();
+        // NOTE: we do not multiply because the algorithms explicitly multiply this by the value
+        // taken from `query_weight()` method of `ScoredCursor`. We might want to refactor this to
+        // be more consistent.
+        return m_wdata.score();
+    }
+    
+    [[nodiscard]] PISA_ALWAYSINLINE auto block_max_deep_score() -> float
+    {
+        // NOTE: we do not multiply because the algorithms explicitly multiply this by the value
+        // taken from `query_weight()` method of `ScoredCursor`. We might want to refactor this to
+        // be more consistent.
+        return m_wdata.deep_score();
     }
 
     [[nodiscard]] PISA_ALWAYSINLINE auto block_max_docid() -> std::uint32_t
@@ -59,24 +72,32 @@ template <typename Index, typename WandType, typename Scorer>
             auto term_weight = 1.0F;
             auto term_id = term.first;
             auto max_weight = wdata.max_term_weight(term_id);
+            auto max_deep_weight = wdata.max_deep_term_weight(term_id);
 
             if (weighted) {
                 term_weight = term.second;
                 max_weight = term_weight * max_weight;
+                max_deep_weight *= term_weight;
                 return BlockMaxScoredCursor<typename Index::document_enumerator, WandType>(
                     std::move(index[term_id]),
                     [scorer = scorer.term_scorer(term_id), weight = term_weight](
                         uint32_t doc, uint32_t freq) { return weight * scorer(doc, freq); },
+                    [scorer = scorer.deep_term_scorer(term_id), weight = term_weight](
+                        uint32_t doc, uint32_t freq) { return weight * scorer(doc, freq); },
                     term_weight,
                     max_weight,
+                    max_deep_weight,
                     wdata.getenum(term_id));
             }
+            
 
             return BlockMaxScoredCursor<typename Index::document_enumerator, WandType>(
                 std::move(index[term_id]),
                 scorer.term_scorer(term_id),
+                scorer.deep_term_scorer(term_id),
                 term_weight,
                 max_weight,
+                max_deep_weight,
                 wdata.getenum(term_id));
         });
 

@@ -94,6 +94,10 @@ void op_perftest(
             std::cout << (t / 1000) << std::endl;
         }
     } else {
+        // int sizes = query_times.size();
+        // for (int i = 0; i < sizes; i++) {
+        //     printf("%d %f\n", i, query_times[i]);
+        // }
         std::sort(query_times.begin(), query_times.end());
         double avg =
             std::accumulate(query_times.begin(), query_times.end(), double()) / query_times.size();
@@ -289,7 +293,7 @@ void perftest(
         if (extract) {
             extract_times(query_fun, queries, thresholds, type, t, 2, std::cout);
         } else {
-            op_perftest(query_fun, queries, thresholds, type, t, 2, k, safe);
+            op_perftest(query_fun, queries, thresholds, type, t, 1, k, safe);
         }
     }
 }
@@ -301,6 +305,7 @@ using wand_uniform_index_quantized = wand_data<wand_data_compressed<PayloadType:
 int main(int argc, const char** argv)
 {
     bool extract = false;
+    bool silent = false;
     bool safe = false;
     bool quantized = false;
 
@@ -309,17 +314,36 @@ int main(int argc, const char** argv)
         arg::Query<arg::QueryMode::Ranked>,
         arg::Algorithm,
         arg::Scorer,
-        arg::Thresholds,
-        arg::LogLevel>
+        arg::Thresholds>
         app{"Benchmarks queries on a given index."};
     app.add_flag("--quantized", quantized, "Quantized scores");
     app.add_flag("--extract", extract, "Extract individual query times");
+    app.add_flag("--silent", silent, "Suppress logging");
     app.add_flag("--safe", safe, "Rerun if not enough results with pruning.")
         ->needs(app.thresholds_option());
+
+    thresd = 0;
+        
+    app.add_option("--alpha", alphad, "alpha")->required();
+    app.add_option("--beta", betad, "beta")->required();
+    app.add_option("--gamma", gammad, "gamma")->required();
+    app.add_option("--thres", thresd, "thres");
+    
+    
+    app.add_flag("--sortd", sortd);
+    app.add_flag("--sortb", sortb);
+    app.add_flag("--pivotd", pivotd);
+    app.add_flag("--pivotb", pivotb);
+    app.add_flag("--jumpd", jumpd);
+    app.add_flag("--jumpb", jumpb);
+
     CLI11_PARSE(app, argc, argv);
 
-    spdlog::set_default_logger(spdlog::stderr_color_mt("stderr"));
-    spdlog::set_level(app.log_level());
+    if (silent) {
+        spdlog::set_default_logger(spdlog::create<spdlog::sinks::null_sink_mt>("stderr"));
+    } else {
+        spdlog::set_default_logger(spdlog::stderr_color_mt("stderr"));
+    }
     if (extract) {
         std::cout << "qid\tusec\n";
     }

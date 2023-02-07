@@ -31,29 +31,34 @@ class wand_data_raw {
         }
 
         template <typename Scorer>
-        float add_sequence(
+        std::pair<float, float> add_sequence(
             binary_freq_collection::sequence const& seq,
             binary_freq_collection const& coll,
             [[maybe_unused]] std::vector<uint32_t> const& doc_lens,
             float avg_len,
             Scorer scorer,
+            Scorer deep_scorer,
             BlockSize block_size)
         {
             auto t = block_size.type() == typeid(FixedBlock)
-                ? static_block_partition(seq, scorer, boost::get<FixedBlock>(block_size).size)
+                ? static_block_partition(seq, scorer, deep_scorer, boost::get<FixedBlock>(block_size).size)
                 : variable_block_partition(
-                    coll, seq, scorer, boost::get<VariableBlock>(block_size).lambda);
+                    coll, seq, scorer, deep_scorer, boost::get<VariableBlock>(block_size).lambda);
 
             block_max_term_weight.insert(
-                block_max_term_weight.end(), t.second.begin(), t.second.end());
-            block_docid.insert(block_docid.end(), t.first.begin(), t.first.end());
-            max_term_weight.push_back(*(std::max_element(t.second.begin(), t.second.end())));
-            blocks_start.push_back(t.first.size() + blocks_start.back());
+                block_max_term_weight.end(), std::get<1>(t).begin(), std::get<1>(t).end());
+            block_max_deep_term_weight.insert(
+                block_max_deep_term_weight.end(), std::get<2>(t).begin(), std::get<2>(t).end());
+            block_docid.insert(block_docid.end(), std::get<0>(t).begin(), std::get<0>(t).end());
+
+            max_term_weight.push_back(*(std::max_element(std::get<1>(t).begin(), std::get<1>(t).end())));
+            max_deep_term_weight.push_back(*(std::max_element(std::get<2>(t).begin(), std::get<2>(t).end())));
+            blocks_start.push_back(std::get<0>(t).size() + blocks_start.back());
 
             total_elements += seq.docs.size();
-            total_blocks += t.first.size();
+            total_blocks += std::get<0>(t).size();
             effective_list++;
-            return max_term_weight.back();
+            return std::make_pair(max_term_weight.back(), max_deep_term_weight.back());
         }
 
         void quantize_block_max_term_weights(float index_max_term_weight)
@@ -67,6 +72,7 @@ class wand_data_raw {
         void build(wand_data_raw& wdata)
         {
             wdata.m_block_max_term_weight.steal(block_max_term_weight);
+            wdata.m_block_max_deep_term_weight.steal(block_max_deep_term_weight);
             wdata.m_blocks_start.steal(blocks_start);
             wdata.m_block_docid.steal(block_docid);
             spdlog::info(
@@ -78,8 +84,10 @@ class wand_data_raw {
         uint64_t total_blocks;
         uint64_t effective_list;
         std::vector<float> max_term_weight;
+        std::vector<float> max_deep_term_weight;
         std::vector<uint64_t> blocks_start;
         std::vector<float> block_max_term_weight;
+        std::vector<float> block_max_deep_term_weight;
         std::vector<uint32_t> block_docid;
     };
     class enumerator {
@@ -90,11 +98,13 @@ class wand_data_raw {
             uint32_t _block_start,
             uint32_t _block_number,
             mapper::mappable_vector<float> const& max_term_weight,
+            mapper::mappable_vector<float> const& max_deep_term_weight,
             mapper::mappable_vector<uint32_t> const& block_docid)
             : cur_pos(0),
               block_start(_block_start),
               block_number(_block_number),
               m_block_max_term_weight(max_term_weight),
+              m_block_max_deep_term_weight(max_deep_term_weight),
               m_block_docid(block_docid)
         {}
 
@@ -110,6 +120,11 @@ class wand_data_raw {
             return m_block_max_term_weight[block_start + cur_pos];
         }
 
+        float PISA_FLATTEN_FUNC deep_score() const
+        {
+            return m_block_max_deep_term_weight[block_start + cur_pos];
+        }
+
         uint64_t PISA_FLATTEN_FUNC docid() const { return m_block_docid[block_start + cur_pos]; }
 
         uint64_t PISA_FLATTEN_FUNC find_next_skip() { return m_block_docid[cur_pos + block_start]; }
@@ -119,6 +134,7 @@ class wand_data_raw {
         uint64_t block_start;
         uint64_t block_number;
         mapper::mappable_vector<float> const& m_block_max_term_weight;
+        mapper::mappable_vector<float> const& m_block_max_deep_term_weight;
         mapper::mappable_vector<uint32_t> const& m_block_docid;
     };
 
@@ -128,6 +144,7 @@ class wand_data_raw {
             m_blocks_start[i],
             m_blocks_start[i + 1] - m_blocks_start[i],
             m_block_max_term_weight,
+            m_block_max_deep_term_weight,
             m_block_docid);
     }
 
@@ -135,12 +152,14 @@ class wand_data_raw {
     void map(Visitor& visit)
     {
         visit(m_blocks_start, "m_blocks_start")(m_block_max_term_weight, "m_block_max_term_weight")(
+            m_block_max_deep_term_weight, "m_block_max_deep_term_weight")(
             m_block_docid, "m_block_docid");
     }
 
   private:
     mapper::mappable_vector<uint64_t> m_blocks_start;
     mapper::mappable_vector<float> m_block_max_term_weight;
+    mapper::mappable_vector<float> m_block_max_deep_term_weight;
     mapper::mappable_vector<uint32_t> m_block_docid;
 };
 

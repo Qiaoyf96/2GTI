@@ -155,7 +155,7 @@ void evaluate_queries(
                 qid.value_or(std::to_string(query_idx)),
                 iteration,
                 docmap[result.second],
-                rank + 1,
+                rank,
                 result.first,
                 run_id);
         }
@@ -187,16 +187,29 @@ int main(int argc, const char** argv)
         arg::Algorithm,
         arg::Scorer,
         arg::Thresholds,
-        arg::Threads,
-        arg::LogLevel>
+        arg::Threads>
         app{"Retrieves query results in TREC format."};
     app.add_option("-r,--run", run_id, "Run identifier");
     app.add_option("--documents", documents_file, "Document lexicon")->required();
     app.add_flag("--quantized", quantized, "Quantized scores");
 
+    thresd = 1;
+    
+    app.add_option("--alpha", alphad, "alpha")->required();
+    app.add_option("--beta", betad, "beta")->required();
+    app.add_option("--gamma", gammad, "gamma")->required();
+    app.add_option("--thres", thresd, "thres");
+    
+    
+    app.add_flag("--sortd", sortd);
+    app.add_flag("--sortb", sortb);
+    app.add_flag("--pivotd", pivotd);
+    app.add_flag("--pivotb", pivotb);
+    app.add_flag("--jumpd", jumpd);
+    app.add_flag("--jumpb", jumpb);
+
     CLI11_PARSE(app, argc, argv);
 
-    spdlog::set_level(app.log_level());
     tbb::global_control control(tbb::global_control::max_allowed_parallelism, app.threads() + 1);
     spdlog::info("Number of worker threads: {}", app.threads());
 

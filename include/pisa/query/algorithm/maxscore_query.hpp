@@ -7,6 +7,7 @@
 #include "query/queries.hpp"
 #include "topk_queue.hpp"
 #include "util/compiler_attribute.hpp"
+#include "util/util.hpp"
 
 namespace pisa {
 
@@ -30,13 +31,13 @@ struct maxscore_query {
     }
 
     template <typename Cursors>
-    [[nodiscard]] PISA_ALWAYSINLINE auto calc_upper_bounds(Cursors&& cursors) -> std::vector<float>
+    [[nodiscard]] PISA_ALWAYSINLINE auto calc_upper_bounds(Cursors&& cursors, double alpha) -> std::vector<float>
     {
         std::vector<float> upper_bounds(cursors.size());
         auto out = upper_bounds.rbegin();
         float bound = 0.0;
         for (auto pos = cursors.rbegin(); pos != cursors.rend(); ++pos) {
-            bound += pos->max_score();
+            bound += pos->max_score() + pos->max_deep_score() * alpha;
             *out++ = bound;
         }
         return upper_bounds;
@@ -56,20 +57,23 @@ struct maxscore_query {
     enum class DocumentStatus : bool { Insert, Skip };
 
     template <typename Cursors>
-    PISA_ALWAYSINLINE void run_sorted(Cursors&& cursors, uint64_t max_docid)
+    PISA_ALWAYSINLINE void run_sorted(Cursors&& cursors, uint64_t max_docid, topk_queue &topk_pivot, topk_queue &topk_jump)
     {
-        auto upper_bounds = calc_upper_bounds(cursors);
-        auto above_threshold = [&](auto score) { return m_topk.would_enter(score); };
+        auto upper_bounds = calc_upper_bounds(cursors, alphad);
+        auto upper_deep_bounds = calc_upper_bounds(cursors, betad);
+        auto above_threshold = [&](topk_queue &m_topk, auto score) { return m_topk.would_enter(score / thresd); };
 
         auto first_upper_bound = upper_bounds.end();
+        auto first_deep_upper_bound = upper_deep_bounds.end();
         auto first_lookup = cursors.end();
         auto next_docid = min_docid(cursors);
 
         auto update_non_essential_lists = [&] {
             while (first_lookup != cursors.begin()
-                   && !above_threshold(*std::prev(first_upper_bound))) {
+                   && !above_threshold(topk_pivot, *std::prev(first_upper_bound))) {
                 --first_lookup;
                 --first_upper_bound;
+                --first_deep_upper_bound;
                 if (first_lookup == cursors.begin()) {
                     return UpdateResult::ShortCircuit;
                 }
@@ -81,22 +85,30 @@ struct maxscore_query {
             return;
         }
 
-        float current_score = 0;
+        float current_score_pivot, current_score_evaluate, current_score_jump = 0;
         std::uint32_t current_docid = 0;
+
+        int evaluated = 0;
 
         while (current_docid < max_docid) {
             auto status = DocumentStatus::Skip;
             while (status == DocumentStatus::Skip) {
                 if (PISA_UNLIKELY(next_docid >= max_docid)) {
+                    // printf("e: %d\n", evaluated);
                     return;
                 }
 
-                current_score = 0;
+                current_score_pivot = 0;
+                current_score_evaluate = 0;
+                current_score_jump = 0;
                 current_docid = std::exchange(next_docid, max_docid);
 
                 std::for_each(cursors.begin(), first_lookup, [&](auto& cursor) {
                     if (cursor.docid() == current_docid) {
-                        current_score += cursor.score();
+                        auto score = cursor.score(), deep_score = cursor.deep_score();
+                        current_score_pivot += score + alphad * deep_score;
+                        current_score_evaluate += (1 - gammad) * deep_score + gammad * score;
+                        current_score_jump += score + betad * deep_score;
                         cursor.next();
                     }
                     if (auto docid = cursor.docid(); docid < next_docid) {
@@ -105,21 +117,33 @@ struct maxscore_query {
                 });
 
                 status = DocumentStatus::Insert;
-                auto lookup_bound = first_upper_bound;
+                auto lookup_bound = first_deep_upper_bound;
                 for (auto pos = first_lookup; pos != cursors.end(); ++pos, ++lookup_bound) {
                     auto& cursor = *pos;
-                    if (not above_threshold(current_score + *lookup_bound)) {
+                    if (not above_threshold(topk_jump, current_score_jump + *lookup_bound)) {
                         status = DocumentStatus::Skip;
+                        m_topk.insert(current_score_evaluate, current_docid);
                         break;
                     }
                     cursor.next_geq(current_docid);
                     if (cursor.docid() == current_docid) {
-                        current_score += cursor.score();
+                        auto score = cursor.score(), deep_score = cursor.deep_score();
+                        current_score_pivot += score + alphad * deep_score;
+                        current_score_evaluate += (1 - gammad) * deep_score + gammad * score;
+                        current_score_jump += score + betad * deep_score;
                     }
                 }
             }
-            if (m_topk.insert(current_score, current_docid)
+
+            evaluated += 1;
+
+            topk_jump.insert(current_score_jump, current_docid);
+            topk_pivot.insert(current_score_pivot, current_docid);
+            m_topk.insert(current_score_evaluate, current_docid);
+
+            if (topk_pivot.insert(current_score_pivot, current_docid)
                 && update_non_essential_lists() == UpdateResult::ShortCircuit) {
+                    // printf("e: %d\n", evaluated);
                 return;
             }
         }
@@ -131,8 +155,12 @@ struct maxscore_query {
         if (cursors_.empty()) {
             return;
         }
+
+        topk_queue topk_pivot(m_topk.capacity());
+        topk_queue topk_jump(m_topk.capacity());
+
         auto cursors = sorted(cursors_);
-        run_sorted(cursors, max_docid);
+        run_sorted(cursors, max_docid, topk_pivot, topk_jump);
         std::swap(cursors, cursors_);
     }
 

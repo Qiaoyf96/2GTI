@@ -15,6 +15,10 @@
 
 namespace pisa {
 
+extern double alphad, betad, gammad, thresd;
+extern bool sortd, pivotd, jumpd;
+extern bool sortb, pivotb, jumpb;
+
 template <typename IntType1, typename IntType2>
 inline IntType1 ceil_div(IntType1 dividend, IntType2 divisor)
 {
@@ -62,22 +66,12 @@ using if_has_next_geq = std::enable_if_t<has_next_geq<T>::value>;
 // Important: the functors must be stateless, otherwise the behavior is
 // undefined.
 template <typename State, typename AdvanceFunctor, typename ValueFunctor>
-class function_iterator {
+class function_iterator
+    : public std::iterator<std::forward_iterator_tag, typename std::result_of<ValueFunctor(State)>::type> {
   public:
-    using iterator_category = std::forward_iterator_tag;
-    using value_type = typename std::invoke_result_t<ValueFunctor, State>;
-    using difference_type = std::ptrdiff_t;
-    using pointer = value_type*;
-    using reference = value_type&;
-
     function_iterator() = default;
 
-    explicit function_iterator(
-        State&& initial_state, AdvanceFunctor&& advance_functor, ValueFunctor&& value_functor)
-        : m_state(std::forward<State>(initial_state)),
-          m_advance_functor(std::forward<AdvanceFunctor>(advance_functor)),
-          m_value_functor(std::forward<ValueFunctor>(value_functor))
-    {}
+    explicit function_iterator(State initial_state) : m_state(initial_state) {}
 
     friend inline void swap(function_iterator& lhs, function_iterator& rhs)
     {
@@ -85,11 +79,19 @@ class function_iterator {
         swap(lhs.m_state, rhs.m_state);
     }
 
-    value_type operator*() const { return m_value_functor(m_state); }
+    // XXX why isn't this inherited from std::iterator?
+    using value_type = typename std::result_of<ValueFunctor(State)>::type;
+
+    value_type operator*() const
+    {
+        // XXX I do not know if this trick is legal for stateless lambdas,
+        // but it seems to work on GCC and Clang
+        return (*static_cast<ValueFunctor*>(nullptr))(m_state);
+    }
 
     function_iterator& operator++()
     {
-        m_advance_functor(m_state);
+        (*static_cast<AdvanceFunctor*>(nullptr))(m_state);
         return *this;
     }
 
@@ -106,18 +108,13 @@ class function_iterator {
 
   private:
     State m_state;
-    AdvanceFunctor m_advance_functor;
-    ValueFunctor m_value_functor;
 };
 
 template <typename State, typename AdvanceFunctor, typename ValueFunctor>
-function_iterator<State, AdvanceFunctor, ValueFunctor> make_function_iterator(
-    State&& initial_state, AdvanceFunctor&& advance_functor, ValueFunctor&& value_functor)
+function_iterator<State, AdvanceFunctor, ValueFunctor>
+make_function_iterator(State initial_state, AdvanceFunctor, ValueFunctor)
 {
-    return function_iterator<State, AdvanceFunctor, ValueFunctor>(
-        std::forward<State>(initial_state),
-        std::forward<AdvanceFunctor>(advance_functor),
-        std::forward<ValueFunctor>(value_functor));
+    return function_iterator<State, AdvanceFunctor, ValueFunctor>(initial_state);
 }
 
 struct stats_line {

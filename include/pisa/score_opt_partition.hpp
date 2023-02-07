@@ -16,6 +16,7 @@ struct score_opt_partition {
     std::vector<uint32_t> docids;
     std::vector<uint32_t> sizes;
     std::vector<float> max_values;
+    std::vector<float> max_deep_values;
     std::vector<float> errors;
     wand_cost_t cost_opt = 0;  // the costs are in bits!
 
@@ -183,6 +184,15 @@ struct score_opt_partition {
         std::reverse(partition.begin(), partition.end());
         std::reverse(max_values_temp.begin(), max_values_temp.end());
         std::reverse(errors.begin(), errors.end());
+        
+        float max_deep_temp = 0.0;
+        for(size_t j = 0; j < partition[0]; j++){
+            float deep_temp = std::get<2>(*(begin + j));
+            if (max_deep_temp < deep_temp){
+                max_deep_temp = deep_temp;
+            }
+        }
+        max_deep_values.push_back(max_deep_temp);
 
         uint32_t current = 0;
         for (size_t i = 0; i < partition.size() - 1; i++) {
@@ -190,6 +200,14 @@ struct score_opt_partition {
             max_values.push_back(max_values_temp[i]);
             sizes.push_back(partition[i] - current);
             current = partition[i];
+            float max_deep_temp = 0.0;
+            for(size_t j = partition[i]; j < partition[i+1]; j++){
+                float deep_temp = std::get<2>(*(begin + j));
+                if (max_deep_temp < deep_temp){
+                    max_deep_temp = deep_temp;
+                }
+            }
+            max_deep_values.push_back(max_deep_temp);
         }
 
         sizes.push_back(partition[partition.size() - 1] - current);

@@ -106,28 +106,31 @@ class wand_data_compressed {
         }
 
         template <typename Scorer>
-        float add_sequence(
+        std::pair<float, float> add_sequence(
             binary_freq_collection::sequence const& seq,
             binary_freq_collection const& coll,
             [[maybe_unused]] std::vector<uint32_t> const& doc_lens,
             float avg_len,
             Scorer scorer,
+            Scorer deep_scorer,
             BlockSize block_size)
         {
             auto t = block_size.type() == typeid(FixedBlock)
-                ? static_block_partition(seq, scorer, boost::get<FixedBlock>(block_size).size)
+                ? static_block_partition(seq, scorer, deep_scorer, boost::get<FixedBlock>(block_size).size)
                 : variable_block_partition(
-                    coll, seq, scorer, boost::get<VariableBlock>(block_size).lambda);
+                    coll, seq, scorer, deep_scorer, boost::get<VariableBlock>(block_size).lambda);
 
-            float max_score = *(std::max_element(t.second.begin(), t.second.end()));
+            float max_score = *(std::max_element(std::get<1>(t).begin(), std::get<1>(t).end()));
+            float max_deep_score = *(std::max_element(std::get<2>(t).begin(), std::get<2>(t).end()));
             max_term_weight.push_back(max_score);
+            max_deep_term_weight.push_back(max_deep_score);
             total_elements += seq.docs.size();
-            total_blocks += t.first.size();
+            total_blocks += std::get<0>(t).size();
 
-            block_max_documents.push_back(std::move(t.first));
-            unquantized_block_max_scores.push_back(std::move(t.second));
+            block_max_documents.push_back(std::move(std::get<0>(t)));
+            unquantized_block_max_scores.push_back(std::move(std::get<1>(t)));
 
-            return max_term_weight.back();
+            return std::make_pair(max_term_weight.back(), max_deep_term_weight.back());
         }
 
         void quantize_block_max_term_weights([[maybe_unused]] float index_max_term_weight) {}
@@ -156,6 +159,7 @@ class wand_data_compressed {
         std::vector<std::vector<uint32_t>> block_max_documents;
         std::vector<std::vector<float>> unquantized_block_max_scores;
         std::vector<float> max_term_weight;
+        std::vector<float> max_deep_term_weight;
         global_parameters const& params;
         typename uniform_score_compressor::builder compressor_builder;
     };
@@ -190,6 +194,16 @@ class wand_data_compressed {
         }
 
         float PISA_FLATTEN_FUNC score()
+        {
+            // NOLINTNEXTLINE(readability-braces-around-statements)
+            if constexpr (IndexPayloadType == PayloadType::Quantized) {
+                return m_cur_score_index;
+            } else {
+                return uniform_score_compressor::score(m_cur_score_index) * m_max_term_weight;
+            }
+        }
+
+        float PISA_FLATTEN_FUNC deep_score()
         {
             // NOLINTNEXTLINE(readability-braces-around-statements)
             if constexpr (IndexPayloadType == PayloadType::Quantized) {

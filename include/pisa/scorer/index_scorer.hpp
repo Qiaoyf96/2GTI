@@ -24,6 +24,7 @@ struct index_scorer {
     virtual ~index_scorer() = default;
 
     virtual term_scorer_t term_scorer(uint64_t term_id) const = 0;
+    virtual term_scorer_t deep_term_scorer(uint64_t term_id) const { return 0; }
 };
 
 }  // namespace pisa

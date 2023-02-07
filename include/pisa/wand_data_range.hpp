@@ -55,22 +55,26 @@ class wand_data_range {
         }
 
         template <typename Scorer>
-        float add_sequence(
+        std::pair<float, float> add_sequence(
             binary_freq_collection::sequence const& term_seq,
             [[maybe_unused]] binary_freq_collection const& coll,
             [[maybe_unused]] std::vector<uint32_t> const& doc_lens,
             float avg_len,
             Scorer scorer,
+            Scorer deep_scorer,
             [[maybe_unused]] BlockSize block_size)
         {
             float max_score = 0.0F;
+            float max_deep_score = 0.0F;
 
             std::vector<float> b_max(blocks_num, 0.0F);
             for (auto i = 0; i < term_seq.docs.size(); ++i) {
                 uint64_t docid = *(term_seq.docs.begin() + i);
                 uint64_t freq = *(term_seq.freqs.begin() + i);
                 float score = scorer(docid, freq);
+                float deep_score = deep_scorer(docid, freq);
                 max_score = std::max(max_score, score);
+                max_deep_score = std::max(max_deep_score, deep_score);
                 size_t pos = docid / range_size;
                 float& bm = b_max[pos];
                 bm = std::max(bm, score);
@@ -82,7 +86,7 @@ class wand_data_range {
             } else {
                 blocks_start.push_back(blocks_start.back());
             }
-            return max_score;
+            return std::make_pair(max_score, max_deep_score);
         }
 
         void quantize_block_max_term_weights(float index_max_term_weight)
@@ -122,6 +126,11 @@ class wand_data_range {
         uint64_t PISA_FLATTEN_FUNC docid() const { return (cur_pos + 1) * range_size; }
 
         float PISA_FLATTEN_FUNC score() const
+        {
+            return m_block_max_term_weight[block_start + cur_pos];
+        }
+
+        float PISA_FLATTEN_FUNC deep_score() const
         {
             return m_block_max_term_weight[block_start + cur_pos];
         }

@@ -33,7 +33,7 @@ TEST_CASE("TODO")
                             {1, 1, 1},  // 6
                         },
                         10};
-    InMemoryWand wand{{1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, 10};
+    InMemoryWand wand{{1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, 10};
     quantized<InMemoryWand> scorer(wand);
     Query query{"Q1", {0, 1, 1, 2}, {}};
 

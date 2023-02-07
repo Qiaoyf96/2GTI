@@ -118,7 +118,7 @@ TEST_CASE("compute intersection", "[intersection][unit]")
                                 {1, 1, 1},  // 6
                             },
                             10};
-        InMemoryWand wand{{0.0, 1.0, 0.0, 0.0, 0.0, 5.0, 6.0}, 10};
+        InMemoryWand wand{{0.0, 1.0, 0.0, 0.0, 0.0, 5.0, 6.0}, {0.0, 1.0, 0.0, 0.0, 0.0, 5.0, 6.0}, 10};
 
         Query query{
             "Q1",  // query ID

@@ -36,9 +36,11 @@ struct InMemoryIndex {
 
 struct InMemoryWand {
     std::vector<float> max_weights;
+    std::vector<float> max_deep_weights;
     std::uint32_t num_documents;
 
     [[nodiscard]] auto max_term_weight(std::uint32_t term_id) const noexcept -> float;
+    [[nodiscard]] auto max_deep_term_weight(std::uint32_t term_id) const noexcept -> float;
     [[nodiscard]] auto term_posting_count(std::uint32_t term_id) const noexcept -> std::uint32_t;
     [[nodiscard]] auto term_occurrence_count(std::uint32_t term_id) const noexcept -> std::uint32_t;
 

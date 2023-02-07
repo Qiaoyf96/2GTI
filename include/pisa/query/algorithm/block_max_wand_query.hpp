@@ -2,6 +2,7 @@
 
 #include "query/queries.hpp"
 #include "topk_queue.hpp"
+#include "util/util.hpp"
 #include <vector>
 namespace pisa {
 
@@ -31,6 +32,9 @@ struct block_max_wand_query {
 
         sort_cursors();
 
+        topk_queue topk_jump(m_topk.capacity());
+        topk_queue topk_pivot(m_topk.capacity());
+
         while (true) {
             // find pivot
             float upper_bound = 0.F;
@@ -44,7 +48,7 @@ struct block_max_wand_query {
                 }
 
                 upper_bound += ordered_cursors[pivot]->max_score();
-                if (m_topk.would_enter(upper_bound)) {
+                if (topk_pivot.would_enter(upper_bound)) {
                     found_pivot = true;
                     pivot_id = ordered_cursors[pivot]->docid();
                     for (; pivot + 1 < ordered_cursors.size()
@@ -67,21 +71,28 @@ struct block_max_wand_query {
                     ordered_cursors[i]->block_max_next_geq(pivot_id);
                 }
 
-                block_upper_bound += ordered_cursors[i]->block_max_score();
+                block_upper_bound +=
+                    ordered_cursors[i]->block_max_score() * ordered_cursors[i]->query_weight()
+                + betad * ordered_cursors[i]->block_max_deep_score() * ordered_cursors[i]->query_weight();
             }
 
-            if (m_topk.would_enter(block_upper_bound)) {
+            if (topk_jump.would_enter(block_upper_bound)) {
                 // check if pivot is a possible match
                 if (pivot_id == ordered_cursors[0]->docid()) {
-                    float score = 0;
+                    float score = 0, score_deep = 0, score_jump = 0;
                     for (Cursor* en: ordered_cursors) {
                         if (en->docid() != pivot_id) {
                             break;
                         }
                         float part_score = en->score();
                         score += part_score;
-                        block_upper_bound -= en->block_max_score() - part_score;
-                        if (!m_topk.would_enter(block_upper_bound)) {
+                        float part_deep = en->deep_score();
+                        score_deep += part_deep;
+
+                        score_jump += part_score + betad * part_deep;
+                        // std::cout << std::endl << "outside " << score_deep << " " << part_deep << std::endl;
+                        block_upper_bound -= (en->block_max_score() + betad * en->block_max_deep_score()) * en->query_weight() - (part_score + betad * part_deep);
+                        if (!topk_jump.would_enter(block_upper_bound)) {
                             break;
                         }
                     }
@@ -92,7 +103,9 @@ struct block_max_wand_query {
                         en->next();
                     }
 
-                    m_topk.insert(score, pivot_id);
+                    topk_pivot.insert(score, pivot_id);
+                    topk_jump.insert(score_jump, pivot_id);
+                    m_topk.insert(score_deep * gammad + score, pivot_id);
                     // resort by docid
                     sort_cursors();
 

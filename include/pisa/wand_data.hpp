@@ -48,6 +48,7 @@ class wand_data {
     {
         std::vector<uint32_t> doc_lens(num_docs);
         std::vector<float> max_term_weight;
+        std::vector<float> max_deep_term_weight;
         std::vector<uint32_t> term_occurrence_counts;
         std::vector<uint32_t> term_posting_counts;
         global_parameters params;
@@ -95,10 +96,14 @@ class wand_data {
                     term_id += 1;
                     continue;
                 }
-                auto v = builder.add_sequence(
-                    seq, coll, doc_lens, m_avg_len, scorer->term_scorer(new_term_id), block_size);
+                auto v_tmp = builder.add_sequence(
+                    seq, coll, doc_lens, m_avg_len, scorer->term_scorer(new_term_id), scorer->deep_term_scorer(new_term_id), block_size);
+                auto v = v_tmp.first;
+                auto v_deep = v_tmp.second;
                 max_term_weight.push_back(v);
+                max_deep_term_weight.push_back(v_deep);
                 m_index_max_term_weight = std::max(m_index_max_term_weight, v);
+                m_index_max_deep_term_weight = std::max(m_index_max_deep_term_weight, v_deep);
                 term_id += 1;
                 new_term_id += 1;
                 progress.update(1);
@@ -114,6 +119,7 @@ class wand_data {
         }
         builder.build(m_block_wand);
         m_max_term_weight.steal(max_term_weight);
+        m_max_deep_term_weight.steal(max_deep_term_weight);
     }
 
     float norm_len(uint64_t doc_id) const { return m_doc_lens[doc_id] / m_avg_len; }
@@ -136,6 +142,9 @@ class wand_data {
     uint64_t collection_len() const { return m_collection_len; }
 
     float max_term_weight(uint64_t list) const { return m_max_term_weight[list]; }
+    float max_deep_term_weight(uint64_t list) const { 
+        return m_max_deep_term_weight[list]; 
+    }
 
     wand_data_enumerator getenum(size_t i) const
     {
@@ -153,7 +162,9 @@ class wand_data {
             m_term_posting_counts, "m_term_posting_counts")(m_avg_len, "m_avg_len")(
             m_collection_len, "m_collection_len")(m_num_docs, "m_num_docs")(
             m_max_term_weight, "m_max_term_weight")(
-            m_index_max_term_weight, "m_index_max_term_weight");
+            m_max_deep_term_weight, "m_max_deep_term_weight")(
+            m_index_max_term_weight, "m_index_max_term_weight")(
+            m_index_max_deep_term_weight, "m_index_max_deep_term_weight");
     }
 
   private:
@@ -161,11 +172,13 @@ class wand_data {
     float m_avg_len = 0;
     uint64_t m_collection_len = 0;
     float m_index_max_term_weight = 0;
+    float m_index_max_deep_term_weight = 0;
     block_wand_type m_block_wand;
     mapper::mappable_vector<uint32_t> m_doc_lens;
     mapper::mappable_vector<uint32_t> m_term_occurrence_counts;
     mapper::mappable_vector<uint32_t> m_term_posting_counts;
     mapper::mappable_vector<float> m_max_term_weight;
+    mapper::mappable_vector<float> m_max_deep_term_weight;
     MemorySource m_source;
 };
 

@@ -21,15 +21,17 @@ struct VariableBlock {
 using BlockSize = boost::variant<FixedBlock, VariableBlock>;
 
 template <typename Scorer>
-std::pair<std::vector<uint32_t>, std::vector<float>> static_block_partition(
-    binary_freq_collection::sequence const& seq, Scorer scorer, const uint64_t block_size)
+std::tuple<std::vector<uint32_t>, std::vector<float>, std::vector<float>> static_block_partition(
+    binary_freq_collection::sequence const& seq, Scorer scorer, Scorer deep_scorer, const uint64_t block_size)
 {
     std::vector<uint32_t> block_docid;
     std::vector<float> block_max_term_weight;
+    std::vector<float> block_max_deep_term_weight;
 
     // Auxiliary vector
-    float max_score = 0;
+    float max_score = 0, max_deep_score = 0;
     float block_max_score = 0;
+    float block_max_deep_score = 0;
     size_t current_block = 0;
     size_t i;
 
@@ -37,27 +39,34 @@ std::pair<std::vector<uint32_t>, std::vector<float>> static_block_partition(
         uint64_t docid = *(seq.docs.begin() + i);
         uint64_t freq = *(seq.freqs.begin() + i);
         float score = scorer(docid, freq);
+        float deep_score = deep_scorer(docid, freq);
         max_score = std::max(max_score, score);
+        max_deep_score = std::max(max_deep_score, deep_score);
         if (i == 0 || (i / block_size) == current_block) {
             block_max_score = std::max(block_max_score, score);
+            block_max_deep_score = std::max(block_max_deep_score, deep_score);
         } else {
             block_docid.push_back(*(seq.docs.begin() + i) - 1);
             block_max_term_weight.push_back(block_max_score);
+            block_max_deep_term_weight.push_back(block_max_deep_score);
             current_block++;
             block_max_score = std::max((float)0, score);
+            block_max_deep_score = std::max((float)0, deep_score);
         }
     }
     block_docid.push_back(*(seq.docs.begin() + seq.docs.size() - 1));
     block_max_term_weight.push_back(block_max_score);
+    block_max_deep_term_weight.push_back(block_max_deep_score);
 
-    return std::make_pair(block_docid, block_max_term_weight);
+    return std::make_tuple(block_docid, block_max_term_weight, block_max_deep_term_weight);
 }
 
 template <typename Scorer>
-std::pair<std::vector<uint32_t>, std::vector<float>> variable_block_partition(
+std::tuple<std::vector<uint32_t>, std::vector<float>, std::vector<float>> variable_block_partition(
     [[maybe_unused]] binary_freq_collection const& coll,
     binary_freq_collection::sequence const& seq,
     Scorer scorer,
+    Scorer deep_scorer,
     const float lambda,
     // Antonio Mallia, Giuseppe Ottaviano, Elia Porciani, Nicola Tonellotto, and Rossano Venturini.
     // 2017. Faster BlockMax WAND with Variable-sized Blocks. In Proc. SIGIR
@@ -65,7 +74,7 @@ std::pair<std::vector<uint32_t>, std::vector<float>> variable_block_partition(
     double eps2 = 0.4)
 {
     // Auxiliary vector
-    using doc_score_t = std::pair<uint64_t, float>;
+    using doc_score_t = std::tuple<uint64_t, float, float>;
     std::vector<doc_score_t> doc_score;
 
     std::transform(
@@ -74,12 +83,12 @@ std::pair<std::vector<uint32_t>, std::vector<float>> variable_block_partition(
         seq.freqs.begin(),
         std::back_inserter(doc_score),
         [&](const uint64_t& doc, const uint64_t& freq) -> doc_score_t {
-            return {doc, scorer(doc, freq)};
+            return {doc, scorer(doc, freq), deep_scorer(doc, freq)};
         });
 
     auto p = score_opt_partition(doc_score.begin(), 0, doc_score.size(), eps1, eps2, lambda);
 
-    return std::make_pair(p.docids, p.max_values);
+    return std::make_tuple(p.docids, p.max_values, p.max_deep_values);
 }
 
 }  // namespace pisa
