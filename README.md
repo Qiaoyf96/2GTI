@@ -2,6 +2,8 @@
 
 This repo provides the 2GTI implementation proposed in the paper "Optimizing Guided Traversal for Fast Learned Sparse Retrieval". The implementation is based on the [PISA](https://github.com/pisa-engine/pisa) search engine.
 
+The data for SPLADE++ can be found [here](https://drive.google.com/drive/folders/12OtiCgdDLE0SUpz_ALFfL4CoT6iaLSIl?usp=share_link).
+
 ## Build
 
 ```
