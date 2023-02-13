@@ -322,7 +322,7 @@ int main(int argc, const char** argv)
     app.add_flag("--safe", safe, "Rerun if not enough results with pruning.")
         ->needs(app.thresholds_option());
 
-    thresd = 0;
+    thresd = 1;
         
     app.add_option("--alpha", alphad, "alpha")->required();
     app.add_option("--beta", betad, "beta")->required();

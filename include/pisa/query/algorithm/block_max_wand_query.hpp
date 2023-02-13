@@ -72,8 +72,8 @@ struct block_max_wand_query {
                 }
 
                 block_upper_bound +=
-                    ordered_cursors[i]->block_max_score() * ordered_cursors[i]->query_weight()
-                + betad * ordered_cursors[i]->block_max_deep_score() * ordered_cursors[i]->query_weight();
+                    betad * 50 * ordered_cursors[i]->block_max_score() * ordered_cursors[i]->query_weight()
+                + (1 - betad) * ordered_cursors[i]->block_max_deep_score() * ordered_cursors[i]->query_weight();
             }
 
             if (topk_jump.would_enter(block_upper_bound)) {
@@ -89,9 +89,9 @@ struct block_max_wand_query {
                         float part_deep = en->deep_score();
                         score_deep += part_deep;
 
-                        score_jump += part_score + betad * part_deep;
+                        score_jump += betad * 50 * part_score + (1 - betad) * part_deep;
                         // std::cout << std::endl << "outside " << score_deep << " " << part_deep << std::endl;
-                        block_upper_bound -= (en->block_max_score() + betad * en->block_max_deep_score()) * en->query_weight() - (part_score + betad * part_deep);
+                        block_upper_bound -= (betad * 50 * en->block_max_score() + (1 - betad) * en->block_max_deep_score()) * en->query_weight() - (betad * 50 * part_score + (1 - betad) * part_deep);
                         if (!topk_jump.would_enter(block_upper_bound)) {
                             break;
                         }
@@ -105,7 +105,7 @@ struct block_max_wand_query {
 
                     topk_pivot.insert(score, pivot_id);
                     topk_jump.insert(score_jump, pivot_id);
-                    m_topk.insert(score_deep * gammad + score, pivot_id);
+                    m_topk.insert((1 - gammad) * score_deep + score * gammad * 50, pivot_id);
                     // resort by docid
                     sort_cursors();
 

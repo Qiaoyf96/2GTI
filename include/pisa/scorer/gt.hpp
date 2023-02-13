@@ -4,20 +4,15 @@
 #include <cmath>
 #include <cstdint>
 
+#include <iostream>
 #include "index_scorer.hpp"
 namespace pisa {
 
-/// Implements the Okapi BM25 model. k1 and b are both free parameters which
-/// alter the weight given to different aspects of the calculation.
-/// We adopt the defaults recommended by the following resource - A. Trotman,
-/// X-F. Jia, and M. Crane: "Towards an Efficient and Effective Search Engine,"
-/// in Proceedings of the SIGIR 2012 Workshop on Open Source Information
-/// Retrieval (OSIR), 2012.
 template <typename Wand>
-struct bm25: public index_scorer<Wand> {
+struct gt: public index_scorer<Wand> {
     using index_scorer<Wand>::index_scorer;
 
-    bm25(const Wand& wdata, const float b, const float k1)
+    gt(const Wand& wdata, const float b, const float k1)
         : index_scorer<Wand>(wdata), m_b(b), m_k1(k1)
     {}
 
@@ -41,7 +36,15 @@ struct bm25: public index_scorer<Wand> {
         auto term_len = this->m_wdata.term_posting_count(term_id);
         auto term_weight = query_term_weight(term_len, this->m_wdata.num_docs());
         auto s = [&, term_weight](uint32_t doc, uint32_t freq) {
-            return term_weight * doc_term_weight(freq, this->m_wdata.norm_len(doc));
+            return term_weight * doc_term_weight(((freq >> 9) & 0x1ff), this->m_wdata.norm_len(doc));
+        };
+        return s;
+    }
+
+    term_scorer_t deep_term_scorer(uint64_t term_id) const override
+    {
+        auto s = [&, term_id](uint32_t doc, uint32_t freq) {
+            return (freq & (0x1ff));
         };
         return s;
     }

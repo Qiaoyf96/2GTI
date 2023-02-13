@@ -37,7 +37,7 @@ struct maxscore_query {
         auto out = upper_bounds.rbegin();
         float bound = 0.0;
         for (auto pos = cursors.rbegin(); pos != cursors.rend(); ++pos) {
-            bound += pos->max_score() + pos->max_deep_score() * alpha;
+            bound += pos->max_score() * alpha * 50 + (1 - alpha) * pos->max_deep_score();
             *out++ = bound;
         }
         return upper_bounds;
@@ -94,7 +94,6 @@ struct maxscore_query {
             auto status = DocumentStatus::Skip;
             while (status == DocumentStatus::Skip) {
                 if (PISA_UNLIKELY(next_docid >= max_docid)) {
-                    // printf("e: %d\n", evaluated);
                     return;
                 }
 
@@ -106,9 +105,9 @@ struct maxscore_query {
                 std::for_each(cursors.begin(), first_lookup, [&](auto& cursor) {
                     if (cursor.docid() == current_docid) {
                         auto score = cursor.score(), deep_score = cursor.deep_score();
-                        current_score_pivot += score + alphad * deep_score;
-                        current_score_evaluate += (1 - gammad) * deep_score + gammad * score;
-                        current_score_jump += score + betad * deep_score;
+                        current_score_pivot += (1 - alphad) * deep_score + alphad * score * 50;
+                        current_score_evaluate += (1 - gammad) * deep_score + gammad * score * 50;
+                        current_score_jump += (1 - betad) * deep_score + betad * score * 50;
                         cursor.next();
                     }
                     if (auto docid = cursor.docid(); docid < next_docid) {
@@ -128,9 +127,9 @@ struct maxscore_query {
                     cursor.next_geq(current_docid);
                     if (cursor.docid() == current_docid) {
                         auto score = cursor.score(), deep_score = cursor.deep_score();
-                        current_score_pivot += score + alphad * deep_score;
-                        current_score_evaluate += (1 - gammad) * deep_score + gammad * score;
-                        current_score_jump += score + betad * deep_score;
+                        current_score_pivot += (1 - alphad) * deep_score + alphad * score * 50;
+                        current_score_evaluate += (1 - gammad) * deep_score + gammad * score * 50;
+                        current_score_jump += (1 - betad) * deep_score + betad * score * 50;
                     }
                 }
             }
@@ -138,12 +137,10 @@ struct maxscore_query {
             evaluated += 1;
 
             topk_jump.insert(current_score_jump, current_docid);
-            topk_pivot.insert(current_score_pivot, current_docid);
             m_topk.insert(current_score_evaluate, current_docid);
 
             if (topk_pivot.insert(current_score_pivot, current_docid)
                 && update_non_essential_lists() == UpdateResult::ShortCircuit) {
-                    // printf("e: %d\n", evaluated);
                 return;
             }
         }
