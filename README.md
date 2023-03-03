@@ -53,5 +53,4 @@ Optimizing Guided Traversal for Fast Learned Sparse Retrieval. Proc. of the ACM 
   year      = {2022},
   url       = {https://arxiv.org/abs/2204.11154}
 }
-
 ```
