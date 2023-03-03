@@ -40,13 +40,12 @@ cd bin
   url       = {https://doi.org/10.1145/3543507.3583497}
 }
 
-@misc{https://doi.org/10.48550/arxiv.2204.11154,
-  author = {Qiao, Yifan and Yang, Yingrui and Lin, Haixin and Xiong, Tianbo and Wang, Xiyue and Yang, Tao},
-  keywords = {Information Retrieval (cs.IR), FOS: Computer and information sciences, FOS: Computer and information sciences},
-  title = {Dual Skipping Guidance for Document Retrieval with Learned Sparse Representations},
+@misc{DT2022,
+  author    = {Qiao, Yifan and Yang, Yingrui and Lin, Haixin and Xiong, Tianbo and Wang, Xiyue and Yang, Tao},
+  title     = {Dual Skipping Guidance for Document Retrieval with Learned Sparse Representations},
   publisher = {arXiv},
-  year = {2022},
-  url = {https://arxiv.org/abs/2204.11154}
+  year      = {2022},
+  url       = {https://arxiv.org/abs/2204.11154}
 }
 
 ```
