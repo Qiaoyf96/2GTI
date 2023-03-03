@@ -31,6 +31,8 @@ cd bin
 
 ## Reference
 
+(2GTI) Yifan Qiao, Yingrui Yang, Haixin Lin, Tao Yang. 2023. 
+Optimizing Guided Traversal for Fast Learned Sparse Retrieval. Proc. of the ACM Web Conference 2023 (WWW ’23), May 1–5, 2023, Austin, TX, USA.
 ```
 @inproceedings{2GTI2023,
   author    = {Yifan Qiao, Yingrui Yang, Haixin Lin, Tao Yang},
@@ -39,7 +41,11 @@ cd bin
   year      = {2023},
   url       = {https://doi.org/10.1145/3543507.3583497}
 }
+```
 
+(DT) Yifan Qiao, Yingrui Yang, Haixin Lin, Tianbo Xiong, Xiyue Wang, and Tao Yang. 2022. [Dual Skipping Guidance for Document Retrieval with Learned Sparse Representations](https://arxiv.org/abs/2204.11154). ArXiv abs/2204.11154 (April 2022).
+
+```
 @misc{DT2022,
   author    = {Qiao, Yifan and Yang, Yingrui and Lin, Haixin and Xiong, Tianbo and Wang, Xiyue and Yang, Tao},
   title     = {Dual Skipping Guidance for Document Retrieval with Learned Sparse Representations},
